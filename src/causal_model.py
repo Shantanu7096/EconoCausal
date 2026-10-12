@@ -3,70 +3,69 @@ import numpy as np
 import pandas as pd
 from dowhy import CausalModel
 
-def generate_mock_data(n_samples=2500):
-    """Generates synthetic retail data with confounders, treatment, and outcome."""
-    np.random.seed(42)
-    
-    # Confounders (W)
-    user_age = np.random.randint(18, 65, n_samples)
-    browsing_time = np.random.exponential(15, n_samples)  # in minutes
-    prior_spend = np.random.gamma(shape=2, scale=120, size=n_samples)  # past 6-month spend ($)
-    
-    # Treatment (T): Discount offered (0 = None, 1 = $10 Coupon)
-    # Confounding: More active browsers and past high spenders receive discounts more often
-    logit_p = -1.8 + 0.04 * browsing_time + 0.002 * prior_spend - 0.01 * user_age
-    prob_discount = 1 / (1 + np.exp(-logit_p))
-    discount = np.random.binomial(1, prob_discount, n_samples)
-    
-    # Outcome (Y): Purchase revenue ($)
-    # True causal effect of discount is +$30.00
-    true_causal_effect = 30.0
-    revenue = (
-        35.0 
-        + 0.45 * user_age 
-        + 1.10 * browsing_time 
-        + 0.12 * prior_spend 
-        + (true_causal_effect * discount) 
-        + np.random.normal(0, 6.0, n_samples)
-    )
-    
-    df = pd.DataFrame({
-        'user_age': user_age,
-        'browsing_time': np.round(browsing_time, 1),
-        'prior_spend': np.round(prior_spend, 2),
-        'discount': discount,
-        'revenue': np.round(revenue, 2)
-    })
-    return df
+# 1. Ensure directory exists
+os.makedirs("data", exist_ok=True)
+csv_path = "data/retail_promotions.csv"
 
-def build_causal_graph(df):
-    """Defines the DAG and identifies causal effects using DoWhy."""
-    causal_graph = """
-    digraph {
-        user_age -> discount;
-        user_age -> revenue;
-        browsing_time -> discount;
-        browsing_time -> revenue;
-        prior_spend -> discount;
-        prior_spend -> revenue;
-        discount -> revenue;
-    }
-    """
-    model = CausalModel(
-        data=df,
-        treatment='discount',
-        outcome='revenue',
-        graph=causal_graph.replace("\n", " ")
-    )
-    estimand = model.identify_effect(proceed_when_unidentifiable=True)
-    return model, estimand
+# 2. Programmatically generate realistic retail promotional data
+np.random.seed(42)
+n_samples = 4000
 
-if __name__ == "__main__":
-    os.makedirs("data", exist_ok=True)
-    df = generate_mock_data()
-    df.to_csv("data/retail_promotions.csv", index=False)
-    print("✓ Dataset created at data/retail_promotions.csv")
-    
-    model, estimand = build_causal_graph(df)
-    print("\n✓ Causal DAG successfully built and identified:")
-    print(estimand)
+# Confounders (W): Customer history and activity
+recency = np.random.randint(1, 12, n_samples)          # Months since last visit
+history = np.random.exponential(150, n_samples)       # Historical total spend ($)
+newbie = np.random.binomial(1, 0.4, n_samples)        # 1 if joined in last 6 months
+
+# Treatment (T): Discount Promo offered (0 = Control, 1 = $10 Discount)
+# Confounding: Higher past spenders & recent buyers have higher likelihood of receiving promo
+prob = 1 / (1 + np.exp(-(0.003 * history - 0.1 * recency + 0.2 * newbie - 0.5)))
+discount_treatment = np.random.binomial(1, prob, n_samples)
+
+# Outcome (Y): Purchase Spend ($)
+# True Causal Uplift from discount = +$22.50
+spend = (
+    15.0
+    + 0.08 * history
+    - 0.5 * recency
+    + (22.5 * discount_treatment)
+    + np.random.normal(0, 5, n_samples)
+)
+spend = np.maximum(0, np.round(spend, 2))
+
+# 3. Save as local dataset
+df = pd.DataFrame({
+    'recency': recency,
+    'history': np.round(history, 2),
+    'newbie': newbie,
+    'discount_treatment': discount_treatment,
+    'spend': spend
+})
+
+df.to_csv(csv_path, index=False)
+print(f"✓ Dataset generated and saved locally at: {csv_path} ({len(df):,} records)")
+
+# 4. Formulate the Causal DAG using DoWhy
+causal_graph = """
+digraph {
+    recency -> discount_treatment;
+    recency -> spend;
+    history -> discount_treatment;
+    history -> spend;
+    newbie -> discount_treatment;
+    newbie -> spend;
+    discount_treatment -> spend;
+}
+"""
+
+print("\n--- Initializing DoWhy Causal Model ---")
+model = CausalModel(
+    data=df,
+    treatment='discount_treatment',
+    outcome='spend',
+    graph=causal_graph.replace("\n", " ")
+)
+
+# 5. Identify the Causal Estimand
+identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+print("\n--- Identified Causal Estimand ---")
+print(identified_estimand)
