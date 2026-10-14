@@ -41,7 +41,9 @@ with col_left:
     st.plotly_chart(fig1, use_container_width=True)
 
 with col_right:
-    st.markdown("#### Confounder vs. Outcome: Historical Spend")
-    fig2 = px.box(df, x="discount", y="historical_spend", color="discount",
-                title="Historical Spend by Discount Status")
+    st.markdown("#### Naive Observational Outcome: Revenue by Promo")
+    fig2 = px.box(df, x="discount", y="revenue", color="discount",
+                title="Raw Revenue Comparison (Biased by Confounders)")
     st.plotly_chart(fig2, use_container_width=True)
+
+st.info("Week 1 Deliverable: Causal Graph formulated. Confounders identified: `user_age`, `browsing_time`, `prior_spend`.")
