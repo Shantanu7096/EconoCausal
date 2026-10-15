@@ -46,3 +46,4 @@ with col_right:
                 title="Raw Revenue Comparison (Biased by Confounders)")
     st.plotly_chart(fig2, use_container_width=True)
 
+st.info("Week 1 Deliverable: Causal Graph formulated. Confounders identified: `user_age`, `browsing_time`, `prior_spend`.")
