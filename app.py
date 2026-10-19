@@ -1,49 +1,88 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="EconoCausal Dashboard", layout="wide")
+st.set_page_config(page_title="EconoCausal | Dynamic Pricing & Causal AI", layout="wide")
 
-st.title("EconoCausal: Dynamic Pricing Engine")
-st.subheader("Week 1: Observational Data & Causal Problem Setup")
+st.title("EconoCausal: Dynamic Pricing via Double Machine Learning")
+st.markdown("Prescriptive Uplift Modeling, Causal Refutation, and Strategic Discount Allocation")
 
-# Sidebar: File Upload & Budget Configuration
-st.sidebar.header("Campaign Configuration")
-uploaded_file = st.sidebar.file_uploader("Upload Promotion CSV", type=["csv"])
-budget_constraint = st.sidebar.number_input("Target Promotional Budget ($)", min_value=1000, value=5000, step=500)
-
-data_path = "data/retail_promotions.csv"
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-elif os.path.exists(data_path):
-    df = pd.read_csv(data_path)
+data_file = "data/retail_scored_ite.csv"
+if not os.path.exists(data_file):
+    st.warning("Running the scoring engine first...")
+    from src.causal_model import generate_advanced_retail_data, train_double_ml
+    df_raw = generate_advanced_retail_data()
+    _, df = train_double_ml(df_raw)
+    df.to_csv(data_file, index=False)
 else:
-    st.error("No dataset found. Run `python src/causal_model.py` first.")
-    st.stop()
+    df = pd.read_csv(data_file)
 
-# Key Business Metrics
+# Sidebar
+st.sidebar.header("Campaign Optimization Settings")
+budget = st.sidebar.slider("Promotional Budget ($10 per coupon)", min_value=1000, max_value=25000, value=8000, step=1000)
+num_targets = budget // 10
+
+# Top Metrics
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Audience Size", f"{len(df):,} users")
-col2.metric("Treated (Discounted)", f"{int(df['discount'].sum()):,} users")
-col3.metric("Baseline Avg Revenue", f"${df[df['discount'] == 0]['revenue'].mean():.2f}")
-col4.metric("Treated Avg Revenue", f"${df[df['discount'] == 1]['revenue'].mean():.2f}")
+col1.metric("Total Customer Base", f"{len(df):,}")
+col2.metric("Mean Predicted Uplift (ITE)", f"${df['predicted_ite'].mean():.2f}")
+col3.metric("Available Discounts", f"{num_targets:,} units")
+persuadables = (df['causal_segment'].str.contains('Persuadables')).sum()
+col4.metric("Identified Persuadables", f"{persuadables:,}")
 
 st.markdown("---")
 
-# Visualizations with Plotly
-col_left, col_right = st.columns(2)
+tab1, tab2, tab3 = st.tabs(["Causal Segmentation", "Qini & Uplift Evaluation", "Optimal Policy Simulator"])
 
-with col_left:
-    st.markdown("#### Confounder vs. Treatment: Browsing Time")
-    fig1 = px.histogram(df, x="browsing_time", color="discount", barmode="overlay",
-                        title="Distribution of Browsing Time by Discount Status")
-    st.plotly_chart(fig1, use_container_width=True)
+with tab1:
+    st.subheader("Audience Segmentation by Causal Uplift (ITE)")
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
+        fig_scatter = px.scatter(
+            df.sample(800, random_state=42),
+            x="browsing_mins",
+            y="predicted_ite",
+            color="causal_segment",
+            size="history",
+            hover_data=['recency'],
+            title="Individual Treatment Effect vs. Browsing Activity (Grouped by Segment)"
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    with col_b:
+        segment_counts = df['causal_segment'].value_counts().reset_index()
+        fig_pie = px.pie(segment_counts, names='causal_segment', values='count', title="Strategic Allocation Share")
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-with col_right:
-    st.markdown("#### Naive Observational Outcome: Revenue by Promo")
-    fig2 = px.box(df, x="discount", y="revenue", color="discount",
-                title="Raw Revenue Comparison (Biased by Confounders)")
-    st.plotly_chart(fig2, use_container_width=True)
+with tab2:
+    st.subheader("Causal Uplift vs. Random Targeting (Qini Curve)")
+    df_sorted = df.sort_values(by="predicted_ite", ascending=False).reset_index(drop=True)
+    df_sorted['cumulative_treated'] = np.arange(1, len(df_sorted) + 1)
+    df_sorted['cumulative_uplift'] = df_sorted['predicted_ite'].cumsum()
+    
+    # Baseline random rollout
+    random_uplift = np.linspace(0, df_sorted['cumulative_uplift'].iloc[-1], len(df_sorted))
+    
+    fig_qini = go.Figure()
+    fig_qini.add_trace(go.Scatter(x=df_sorted['cumulative_treated'], y=df_sorted['cumulative_uplift'], mode='lines', name='Causal Double ML Policy', line=dict(color='#00CC96', width=3)))
+    fig_qini.add_trace(go.Scatter(x=df_sorted['cumulative_treated'], y=random_uplift, mode='lines', name='Random Promotion Policy', line=dict(color='#EF553B', dash='dash')))
+    fig_qini.update_layout(title="Cumulative Incremental Revenue Curve", xaxis_title="Customers Targeted", yaxis_title="Cumulative Incremental Revenue ($)")
+    st.plotly_chart(fig_qini, use_container_width=True)
 
-st.info("Week 1 Deliverable: Causal Graph formulated. Confounders identified: `user_age`, `browsing_time`, `prior_spend`.")
+with tab3:
+    st.subheader("Prescriptive Discount Policy Allocation")
+    df_ranked = df.sort_values(by="predicted_ite", ascending=False).copy()
+    df_ranked['Action'] = 'Holdout (No Promo)'
+    df_ranked.iloc[:num_targets, df_ranked.columns.get_loc('Action')] = 'Send $10 Discount'
+    
+    est_incremental_rev = df_ranked.iloc[:num_targets]['predicted_ite'].sum()
+    net_roi = ((est_incremental_rev - budget) / budget) * 100
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Expected Incremental Revenue", f"${est_incremental_rev:,.2f}")
+    m2.metric("Campaign Net Cost", f"${budget:,.2f}")
+    m3.metric("Projected Net ROI", f"{net_roi:.1f}%")
+    
+    st.dataframe(df_ranked[['recency', 'history', 'browsing_mins', 'predicted_ite', 'causal_segment', 'Action']].head(20))
