@@ -7,8 +7,8 @@ import os
 
 st.set_page_config(page_title="EconoCausal | Dynamic Pricing & Causal AI", layout="wide")
 
-st.title("EconoCausal: Dynamic Pricing via Double Machine Learning")
-st.markdown("Prescriptive Uplift Modeling, Causal Refutation, and Strategic Discount Allocation")
+st.title("EconoCausal: Dynamic Pricing Engine")
+st.markdown("Smart Discount Planning & Profit Optimization")
 
 data_file = "data/retail_scored_ite.csv"
 if not os.path.exists(data_file):
@@ -27,15 +27,16 @@ num_targets = budget // 10
 
 # Top Metrics
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Customer Base", f"{len(df):,}")
-col2.metric("Mean Predicted Uplift (ITE)", f"${df['predicted_ite'].mean():.2f}")
-col3.metric("Available Discounts", f"{num_targets:,} units")
-persuadables = (df['causal_segment'].str.contains('Persuadables')).sum()
-col4.metric("Identified Persuadables", f"{persuadables:,}")
+col1.metric("Total Customers", f"{len(df):,}")
+col2.metric("Extra Sales Per Discount", f"${df['predicted_ite'].mean():.2f}")
+col3.metric("Discounts to Give", f"{num_targets:,} coupons")
+col4.metric("Average Customer Value", f"${df['revenue'].mean():.2f}")
+targets = (df['causal_segment'].str.contains('Target Customers')).sum()
+col4.metric("Identified Target Customers", f"{targets:,}")
 
 st.markdown("---")
 
-tab1, tab2, tab3 = st.tabs(["Causal Segmentation", "Qini & Uplift Evaluation", "Optimal Policy Simulator"])
+tab1, tab2, tab3 = st.tabs(["Customer Groups", "Performance Comparison", "Budget & Profit Calculator"])
 
 with tab1:
     st.subheader("Audience Segmentation by Causal Uplift (ITE)")
@@ -72,7 +73,7 @@ with tab2:
     st.plotly_chart(fig_qini, use_container_width=True)
 
 with tab3:
-    st.subheader("Prescriptive Discount Policy Allocation")
+    st.subheader("Best Discount Distribution Plan")
     df_ranked = df.sort_values(by="predicted_ite", ascending=False).copy()
     df_ranked['Action'] = 'Holdout (No Promo)'
     df_ranked.iloc[:num_targets, df_ranked.columns.get_loc('Action')] = 'Send $10 Discount'
@@ -81,8 +82,8 @@ with tab3:
     net_roi = ((est_incremental_rev - budget) / budget) * 100
     
     m1, m2, m3 = st.columns(3)
-    m1.metric("Expected Incremental Revenue", f"${est_incremental_rev:,.2f}")
-    m2.metric("Campaign Net Cost", f"${budget:,.2f}")
-    m3.metric("Projected Net ROI", f"{net_roi:.1f}%")
+    m1.metric("Expected Extra Sales", f"${est_incremental_rev:,.2f}")
+    m2.metric("Total Campaign Cost", f"${budget:,.2f}")
+    m3.metric("Estimated Profit Return (ROI)", f"{net_roi:.1f}%")
     
     st.dataframe(df_ranked[['recency', 'history', 'browsing_mins', 'predicted_ite', 'causal_segment', 'Action']].head(20))

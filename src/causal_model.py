@@ -81,11 +81,11 @@ def train_double_ml(df):
     df['predicted_ite'] = np.round(predicted_ite, 2)
     
     # Segment Audience into Strategic Causal Quadrants
-    df['causal_segment'] = 'Lost Causes'
-    df.loc[(df['predicted_ite'] > 12.0), 'causal_segment'] = 'High-Value Persuadables'
-    df.loc[(df['predicted_ite'] > 4.0) & (df['predicted_ite'] <= 12.0), 'causal_segment'] = 'Moderate Persuadables'
-    df.loc[(df['predicted_ite'] <= 4.0) & (df['revenue'] > 50), 'causal_segment'] = 'Sure Things (No Discount Needed)'
-    df.loc[(df['predicted_ite'] <= 0), 'causal_segment'] = 'Sleeping Dogs / Waste'
+    df['causal_segment'] = 'Non-Buyers'
+    df.loc[(df['predicted_ite'] > 12.0), 'causal_segment'] = 'Best Target Customers'
+    df.loc[(df['predicted_ite'] > 4.0) & (df['predicted_ite'] <= 12.0), 'causal_segment'] = 'Average Target Customers'
+    df.loc[(df['predicted_ite'] <= 4.0) & (df['revenue'] > 50), 'causal_segment'] = 'Always-Buy Customers'
+    df.loc[(df['predicted_ite'] <= 0), 'causal_segment'] = 'Do-Not-Disturb Customers'
     
     return dml, df
 
