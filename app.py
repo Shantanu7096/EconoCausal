@@ -91,8 +91,3 @@ with tab4:
 with tab5:
     render_causal_diagnostics()
 
-with tab6:
-    df_ranked = df.sort_values(by="predicted_ite", ascending=False).copy()
-    total_sales = df_ranked.iloc[:num_targets]['predicted_ite'].sum()
-    net_roi = ((total_sales - budget) / budget) * 100 if budget > 0 else 0
-    render_database_governance(budget, coupon_val, num_targets, total_sales, net_roi)
