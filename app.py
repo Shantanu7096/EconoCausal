@@ -10,7 +10,9 @@ from src.ui_components import (
     render_whatif_sandbox,
     render_policy_solver,
     render_causal_diagnostics,
-    render_database_governance
+    render_database_governance,
+    render_prescriptive_allocation_matrix,
+    render_drift_monitoring_view
 )
 from src.database import load_scored_customers
 
@@ -67,12 +69,13 @@ render_kpis(
 )
 
 # 6. Tab Navigation (Each View Rendered Exactly Once Inside Its Own Tab)
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📈 Qini & Profit Uplift",
     "🗺️ Audience Discovery & Cohorts",
     "🧪 Live What-If Sandbox",
-    "🎯 Optimal Allocation Solver",
+    "🎯 Prescriptive Allocation Matrix",
     "🛡️ Causal Integrity & DAG",
+    "📡 Data Drift & Telemetry",
     "🏛️ Database & Audit Logs"
 ])
 
@@ -86,12 +89,15 @@ with tab3:
     render_whatif_sandbox()
 
 with tab4:
-    render_policy_solver(df, budget, coupon_val, num_targets)
+    render_prescriptive_allocation_matrix(df, budget)
 
 with tab5:
     render_causal_diagnostics()
 
 with tab6:
+    render_drift_monitoring_view(df)
+
+with tab7:
     df_ranked = df.sort_values(by="predicted_ite", ascending=False).copy()
     total_sales = df_ranked.iloc[:num_targets]['predicted_ite'].sum()
     net_roi = ((total_sales - budget) / budget) * 100 if budget > 0 else 0

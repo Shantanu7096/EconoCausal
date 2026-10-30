@@ -4,6 +4,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from src.database import log_campaign, load_campaign_history
+from src.prescriptive_optimizer import solve_optimal_budget_allocation
+from src.drift_monitor import detect_covariate_drift, generate_natural_language_executive_summary
 
 CHART_BG = "rgba(0,0,0,0)"
 GRID_COLOR = "rgba(128,128,128,0.15)"
@@ -359,3 +361,74 @@ def render_database_governance(budget, coupon_val, num_targets, total_sales, net
         st.dataframe(df_logs, width='stretch')
     else:
         st.info("No campaign runs recorded yet. Click 'Commit & Save Campaign Run to Database' above to create your first entry.")
+        
+
+
+def render_prescriptive_allocation_matrix(df, budget):
+    st.subheader("🎯 Prescriptive Allocation Matrix (SciPy MILP Optimization)")
+    st.caption("Mathematically solving for global revenue maximization under strict marketing budget limits.")
+    
+    with st.spinner("Computing global integer optimization solution..."):
+        opt_df = solve_optimal_budget_allocation(df, budget=budget)
+        
+    # Natural Language Summary Banner (Week 4 Feature)
+    summary_text = generate_natural_language_executive_summary(opt_df, budget)
+    st.info(f"💡 **Executive AI Synthesis:** {summary_text}")
+    
+    treated = opt_df[opt_df['prescribed_discount'] > 0]
+    total_sales = treated['prescribed_lift'].sum()
+    total_cost = treated['prescribed_discount'].sum()
+    net_roi = ((total_sales - total_cost) / total_cost) * 100 if total_cost > 0 else 0
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Optimized Extra Sales", f"${total_sales:,.2f}")
+    c2.metric("Optimal Budget Deployed", f"${total_cost:,.2f}")
+    c3.metric("Projected Net ROI", f"{net_roi:.1f}%")
+    c4.metric("Personalized Recipients", f"{len(treated):,} users")
+    
+    st.write("")
+    f1, f2 = st.columns([2, 1])
+    with f1:
+        chosen_actions = st.multiselect(
+            "Filter Allocation Matrix by Action:",
+            options=list(opt_df['prescribed_action'].unique()),
+            default=list(opt_df['prescribed_action'].unique()),
+            key="allocation_matrix_filter"
+        )
+    with f2:
+        st.write("")
+        st.download_button(
+            label="📥 Export Prescriptive Allocation Matrix (CSV)",
+            data=opt_df.to_csv(index=False).encode('utf-8'),
+            file_name="prescriptive_allocation_matrix.csv",
+            mime="text/csv",
+            key="download_prescriptive_matrix"
+        )
+        
+    cols_to_show = ['recency', 'history', 'browsing_mins', 'predicted_ite', 'prescribed_action', 'prescribed_discount']
+    st.dataframe(opt_df[opt_df['prescribed_action'].isin(chosen_actions)][cols_to_show].head(40), width='stretch')
+
+def render_drift_monitoring_view(df):
+    st.subheader("🛡️ Automated Data Drift Detector (Week 4 Milestone)")
+    st.caption("Validates whether incoming customer distributions have drifted relative to training baseline.")
+    
+    # Simulate an incoming operational batch (e.g. shift in browsing minutes)
+    drift_sample = df.sample(800, random_state=101).copy()
+    drift_sample['browsing_mins'] = drift_sample['browsing_mins'] * np.random.uniform(1.15, 1.35, len(drift_sample))
+    
+    is_drift, report = detect_covariate_drift(df, drift_sample)
+    
+    if is_drift:
+        st.warning("⚠️ **Distribution Drift Alert:** A statistically significant shift in customer behavioral covariates was detected via Kolmogorov-Smirnov testing.")
+    else:
+        st.success("✅ **Covariate Stability:** No significant distributional shift detected across baseline features.")
+        
+    drift_rows = []
+    for var, stats in report.items():
+        drift_rows.append({
+            "Feature Name": var,
+            "KS Statistic": stats['ks_stat'],
+            "p-Value": stats['p_value'],
+            "Drift Detected": "🚨 DRIFT DETECTED" if stats['drift_detected'] else "STABLE ✅"
+        })
+    st.dataframe(pd.DataFrame(drift_rows), width='stretch')
