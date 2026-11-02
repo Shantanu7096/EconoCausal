@@ -159,4 +159,11 @@ if __name__ == "__main__":
     model, estimand = run_dowhy_identification(df_raw)
     _, df_scored = train_double_ml(df_raw)
     
+    df_scored.to_csv(csv_scored_path, index=False)
+    print(f"Saved ITE-scored dataset to: {csv_scored_path}")
     
+    # Save to SQLite Database
+    save_scored_customers(df_scored)
+    print("✓ Synced scored records with SQLite Database: data/econocausal.db")
+    
+    run_refutation_audit(model, estimand)
