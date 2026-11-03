@@ -151,3 +151,19 @@ def run_refutation_audit(model, estimand):
     random_refute = model.refute_estimate(estimand, estimate, method_name="random_common_cause")
     print(f"Random Common Cause Test: New Effect = ${random_refute.new_effect:.3f} (Passed if stable)")
 
+if __name__ == "__main__":
+    df_raw = generate_enhanced_retail_dataset(5000)
+    df_raw.to_csv(csv_raw_path, index=False)
+    print(f"Saved raw observational dataset to: {csv_raw_path}")
+    
+    model, estimand = run_dowhy_identification(df_raw)
+    _, df_scored = train_double_ml(df_raw)
+    
+    df_scored.to_csv(csv_scored_path, index=False)
+    print(f"Saved ITE-scored dataset to: {csv_scored_path}")
+    
+    # Save to SQLite Database
+    save_scored_customers(df_scored)
+    print("✓ Synced scored records with SQLite Database: data/econocausal.db")
+    
+    run_refutation_audit(model, estimand)
